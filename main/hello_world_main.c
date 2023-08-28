@@ -80,7 +80,6 @@ static void tcp_client_task(void *pvParameters)
     char rx_buffer[128];
     char addr_str[128];
 
-
     while (1)
     {
         struct sockaddr_in destAddr;
