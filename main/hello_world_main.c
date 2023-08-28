@@ -79,8 +79,7 @@ static void tcp_client_task(void *pvParameters)
 {
     char rx_buffer[128];
     char addr_str[128];
-    int addr_family;
-    int ip_protocol;
+
 
     while (1)
     {
@@ -91,11 +90,10 @@ static void tcp_client_task(void *pvParameters)
         destAddr.sin_family = AF_INET;
         //destAddr.sin_port = htons(My_Wifi_Conf.Host_Port);
         destAddr.sin_port = htons(755);
-        addr_family = AF_INET;
-        ip_protocol = IPPROTO_IP;
+
         inet_ntoa_r(destAddr.sin_addr, addr_str, sizeof(addr_str) - 1);
 
-        sock =  socket(addr_family, SOCK_STREAM, ip_protocol);
+        sock =  socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (sock < 0)
         {
             ESP_LOGE(TCP_CLIENT_TAG, "Unable to create socket: errno %d", errno);
