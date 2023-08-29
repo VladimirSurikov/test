@@ -96,7 +96,7 @@ static void tcp_client_task(void *pvParameters)
         if (sock < 0)
         {
             ESP_LOGE(TCP_CLIENT_TAG, "Unable to create socket: errno %d", errno);
-            vTaskDelay(200 /portTICK_PERIOD_MS );
+            vTaskDelay(1000 /portTICK_PERIOD_MS );
             break;
         }
         ESP_LOGI(TCP_CLIENT_TAG, "Socket created");
@@ -106,7 +106,7 @@ static void tcp_client_task(void *pvParameters)
         {
             ESP_LOGE(TCP_CLIENT_TAG, "Socket unable to connect: errno %d", errno);
             close(sock);
-            vTaskDelay(200 /portTICK_PERIOD_MS );
+            vTaskDelay(1000 /portTICK_PERIOD_MS );
             continue;
         }
         ESP_LOGI(TCP_CLIENT_TAG, "Successfully connected");
@@ -125,8 +125,8 @@ static void tcp_client_task(void *pvParameters)
             else
             {
                 //rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string
-                ESP_LOGI(TCP_CLIENT_TAG, "Received %d bytes from %s:", len, addr_str);
 				uart_write_bytes(EX_UART_NUM, (const char *) rx_buffer, len);
+				ESP_LOGI(TCP_CLIENT_TAG, "Received %d bytes from %s:", len, addr_str);
             }
 
 
@@ -146,45 +146,49 @@ static void tcp_client_task(void *pvParameters)
 
 static void process_cmd(uint8_t *p_data)
 {
-	static uint8_t tx_buffer[128];
+	static uint8_t tx_buffer[256];
 	uint8_t *p_tx_buffer = tx_buffer;
 	switch(p_data[0])
 	{
 		case EC_Read_Config:
 		{
-			uart_tx_chars(UART_NUM_0, (const char *)"Read Config \n",  sizeof("Read Config \n"));
+			//uart_tx_chars(UART_NUM_0, (const char *)"Read Config \n",  sizeof("Read Config \n"));
+
 			p_tx_buffer[0] = EC_Read_Config;
 			p_tx_buffer++;
-			strcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Wifi_SSID);
-			p_tx_buffer += strlen(My_Wifi_Conf.Wifi_SSID) + 1;
 
-			strcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Wifi_Pass);
-			p_tx_buffer += strlen(My_Wifi_Conf.Wifi_Pass) + 1;
+			memcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Wifi_SSID, 20);
+			p_tx_buffer += sizeof(My_Wifi_Conf.Wifi_SSID);
 
-			strcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Host_IP);
-			p_tx_buffer += strlen(My_Wifi_Conf.Host_IP) + 1;
+			memcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Wifi_Pass, 20);
+			p_tx_buffer += sizeof(My_Wifi_Conf.Wifi_Pass);
 
-			strcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Host_Port);
+			memcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Host_IP, 20);
+			p_tx_buffer += sizeof(My_Wifi_Conf.Host_IP);
+
+			memcpy((char *)p_tx_buffer, (const char *)My_Wifi_Conf.Host_Port, 20);
 
 
-			uart_tx_chars(UART_NUM_0, (const char *)tx_buffer,  sizeof(tx_buffer));
+			uart_tx_chars(UART_NUM_0, (const char *)tx_buffer,  sizeof(My_Wifi_Conf) + 1);
 		}
 		break;
 
 		case EC_Write_Config:
 		{
-			uart_tx_chars(UART_NUM_0, (const char *)"Write Config \n",  sizeof("Write Config \n"));
+			//uart_tx_chars(UART_NUM_0, (const char *)"Write Config \n",  sizeof("Write Config \n"));
+
 			p_data++; //FIRST IS COMMAND BYTE
-			strcpy(My_Wifi_Conf.Wifi_SSID, (const char *)p_data);
-			p_data += strlen((const char*)p_data) + 1;
 
-			strcpy(My_Wifi_Conf.Wifi_Pass, (const char *)p_data);
-			p_data += strlen((const char*)p_data) + 1;
+			memcpy(My_Wifi_Conf.Wifi_SSID, (const char *)p_data, 20);
+			p_data += sizeof(My_Wifi_Conf.Wifi_SSID);
 
-			strcpy(My_Wifi_Conf.Host_IP, (const char *)p_data);
-			p_data += strlen((const char*)p_data) + 1;
+			memcpy(My_Wifi_Conf.Wifi_Pass, (const char *)p_data, 20);
+			p_data += sizeof(My_Wifi_Conf.Wifi_Pass);
 
-			strcpy(My_Wifi_Conf.Host_Port, (const char *)p_data);
+			memcpy(My_Wifi_Conf.Host_IP, (const char *)p_data, 20);
+			p_data += sizeof(My_Wifi_Conf.Host_IP);
+
+			memcpy(My_Wifi_Conf.Host_Port, (const char *)p_data, 20);
 
 
 			ESP_ERROR_CHECK(nvs_set_blob (my_handle, "wifi_config", (const void*)&My_Wifi_Conf, sizeof(My_Wifi_Conf) ));
@@ -222,7 +226,7 @@ static void uart_event_task(void *pvParameters)
                 	uint16_t i;
 					static uint16_t j = 0;
 					static uint8_t mode = 0;
-					ESP_LOGI(UART_TAG, "[UART DATA]: %d", event.size);
+
 					uart_read_bytes(EX_UART_NUM, dtmp, event.size, 50 / portMAX_DELAY); //проверка буфера
 
 					if(mode == 0)//Normal mode
@@ -243,6 +247,7 @@ static void uart_event_task(void *pvParameters)
 							mode = 1;
 							j = 0;
 
+							esp_log_level_set("*", ESP_LOG_NONE); //working methods
 							uart_write_bytes(EX_UART_NUM, (const char *) answer, sizeof(answer));
 							vTaskSuspend(h_tcp_task);
 
@@ -260,6 +265,8 @@ static void uart_event_task(void *pvParameters)
 					{
 						process_cmd(dtmp);//передача указателя на буфер полученных байт
 					}
+
+					ESP_LOGI(UART_TAG, "[UART DATA]: %d", event.size);
 					break;
                 }
 
